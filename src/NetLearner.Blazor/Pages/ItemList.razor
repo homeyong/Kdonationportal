@@ -1,0 +1,59 @@
+﻿@page "/itemlist"
+@using NetLearner.SharedLib.Models
+@using NetLearner.SharedLib.Services
+@inject IDonationService donationService
+
+<h1>Donation Tracking</h1>
+
+<div class="row">
+    @if (DonationLists != null)
+    {
+    <table class="table">
+        <tr>
+            <th>
+                Email
+            </th>
+            <th>
+                Phone
+            </th>
+            <th>
+                Tracking Number
+            </th>
+            <th>
+                Donation
+            </th>
+        </tr>
+        @foreach (var item in DonationLists)
+        {
+            <tr>
+                <td width="50">
+                    @item.Email
+                </td>
+                <td>
+                    @item.Phone
+                </td>
+                <td>
+                    @item.TrackingNumber
+                </td>
+                 <td>
+                    @item.DonationItems
+                </td>
+                <td>
+                    <input type="button"  class="btn btn-primary" value="Track" onclick="inputTrack('@item.TrackingNumber')">
+                </td>
+            </tr>
+        }
+    </table>
+}
+</div>
+
+@code {
+    public bool IsDisabled { get; set; }
+
+    List<Donation> DonationLists = new List<Donation>();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        DonationLists = await donationService.Get();
+    }
+}

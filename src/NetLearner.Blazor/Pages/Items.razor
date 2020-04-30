@@ -1,0 +1,192 @@
+@page "/items"
+@using NetLearner.SharedLib.Models
+@using NetLearner.SharedLib.Services
+@using System
+@using Twilio
+@using Twilio.Rest.Api.V2010.Account
+@inject ILearningResourceService learningResourceService
+@inject IResourceListService resourceListService
+@inject IDonationService donationService
+@inject IJSRuntime jsRuntime
+
+
+<h1>Donation Cart</h1>
+
+<div class="row">
+    @if (items != null)
+    {
+    <table class="table">
+        <tr>
+            <th>
+                ID
+            </th>
+            <th>
+                Name
+            </th>
+            <th>
+                Price
+            </th>
+            <th>
+                Picture
+            </th>
+            <th>
+                Description
+            </th>
+            <th>Quantity</th>
+        </tr>
+        @foreach (var item in ListOfDonations)
+        {
+            <tr>
+                <td width="50">
+                    @item.Id
+                </td>
+                <td>
+                    @item.Name
+                </td>
+                <td>
+                    @item.Price
+                </td>
+                <td><img src="@item.Url" width="150" /></td>
+                 <td>
+                    @item.ContentFeedUrl
+                </td>
+                <td width="20">
+                  <input type=textbox @bind-value="item.Quantity" disabled="@IsDisabled" width="20"/>
+                </td>
+            </tr>
+        }
+    </table>
+}
+</div>
+<div class="row">
+    <label>@Description</label>
+</div>
+<div class="row">
+    <div class="col-md-2">
+        <label>Email</label>
+    </div>
+     <div class="col-md-2">
+        <input type="email" disabled="@IsDisabled" id="Email" @bind="Email" maxlength="50">
+    </div>
+</div>
+<div class="row">
+    <div class="col-md-2">
+        <label>Phone Number</label>
+    </div>
+     <div class="col-md-2">
+        <input type="tel" disabled="@IsDisabled" id="PhoneNumber" @bind="PhoneNumber" maxlength="50">
+    </div>
+</div>
+<input type="button" disabled="@IsDisabled" class="btn btn-primary" value="Purchase" @onclick="@(() => HandleSubmit())">
+
+@code {
+    public string Email { get; set; }
+    public string Description { get; set; }
+    public string PhoneNumber { get; set; }
+    public bool IsDisabled { get; set; }
+
+    List<LearningResource> items;
+    LearningResource learningResourceObject = new LearningResource();
+    List<LearningResourceDTO> ListOfDonations = new List<LearningResourceDTO>();
+    List<ResourceList> ResourceLists = new List<ResourceList>();
+    List<string> ListOfTrack = new List<string> { "EHA172654813MY", "ERB733677062MY", "ERB733677062MY", "ERB733677062MY", "ENB053390271MY", "ENB035826128MY", "ENB035826128MY" };
+
+    public class LearningResourceDTO
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Url { get; set; }
+        public int ResourceListId { get; set; }
+        public int Price { get; set; }
+        public string ContentFeedUrl { get; set; }
+        public int Quantity { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        items = await learningResourceService.Get();
+        ResourceLists = await resourceListService.Get();
+
+        foreach (LearningResource item in items)
+        {
+            ListOfDonations.Add(
+                new LearningResourceDTO
+                {
+                    Id = item.Id,
+                    Name = item.Name,
+                    Url = item.Url,
+                    Price = item.Price,
+                    ContentFeedUrl = item.ContentFeedUrl,
+                    Quantity = 1
+                }
+            );
+        }
+    }
+
+    private void InsertQuantity(int id, int quantity)
+    {
+        //First find the item
+        var supply = ListOfDonations.First(x => x.Id == id);
+        supply.Quantity = quantity;
+    }
+    private void HandleSubmit()
+    {
+        IsDisabled = true;
+        Description = $"Thanks for your support. The order has been made with the following: {System.Environment.NewLine}";
+        foreach (LearningResourceDTO i in ListOfDonations)
+        {
+            Description += $"{ i.Name } x { i.Quantity.ToString() }" + System.Environment.NewLine;
+        }
+        
+        SendMessage(Description, PhoneNumber);
+        SaveDonation(Email, Description, PhoneNumber);
+        ShowAlert();
+    }
+
+    private void SaveDonation(string email, string donationItem, string phone)
+    {
+        var random = new Random();
+        int index = random.Next(ListOfTrack.Count);
+        
+        Donation d = new Donation();
+        d.Email = email;
+        d.DonationItems = donationItem;
+        d.Phone = phone;
+        d.TrackingNumber = ListOfTrack[index];
+        donationService.Add(d);
+    }
+
+    private async void SendMessage(string bodyDesc, string phone)
+    {
+
+        var accountSid = Environment.GetEnvironmentVariable("TWILIO_ACCOUNT_SID");
+        var authToken = Environment.GetEnvironmentVariable("TWILIO_AUTH_TOKEN");
+
+
+        TwilioClient.Init(accountSid, authToken);
+
+        var message = MessageResource.Create(
+            body: bodyDesc,
+            from: new Twilio.Types.PhoneNumber("+12029493350"),
+            to: new Twilio.Types.PhoneNumber(phone)
+        );
+
+        Console.WriteLine("Successfully Sent.");
+
+        TwilioClient.Init(accountSid, authToken);
+
+        var message1 = MessageResource.Create(
+            from: new Twilio.Types.PhoneNumber("whatsapp:+14155238886"),
+            body: bodyDesc,
+            to: new Twilio.Types.PhoneNumber($"whatsapp:{ phone }")
+        );
+
+        Console.WriteLine(message1.Sid);
+        StateHasChanged();
+    }
+
+    private async void ShowAlert()
+    {
+        await jsRuntime.InvokeAsync<object>("ShowAlert", Description);
+    }
+}
